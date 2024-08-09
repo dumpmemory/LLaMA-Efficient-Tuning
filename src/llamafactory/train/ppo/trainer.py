@@ -39,7 +39,7 @@ from trl.models.utils import unwrap_model_for_generation
 from ...extras.logging import get_logger
 from ...extras.misc import AverageMeter, count_parameters, get_current_device, get_logits_processor
 from ..callbacks import FixValueHeadModelCallback, SaveProcessorCallback
-from ..trainer_utils import create_custom_optimzer, create_custom_scheduler
+from ..trainer_utils import create_custom_optimizer, create_custom_scheduler
 from .ppo_utils import dump_layernorm, get_rewards_from_server, replace_model, restore_layernorm
 
 
@@ -77,9 +77,13 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
         ref_model: Optional["AutoModelForCausalLMWithValueHead"],
         tokenizer: "PreTrainedTokenizer",
         processor: Optional["ProcessorMixin"],
-        dataset: "Dataset",
         data_collator: "DataCollatorWithPadding",
+        train_dataset: Optional["Dataset"] = None,
+        eval_dataset: Optional["Dataset"] = None,
     ) -> None:
+        if eval_dataset is not None:
+            raise NotImplementedError("PPOTrainer does not support eval dataset yet.")
+
         backward_batch_size = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
         ppo_config = PPOConfig(
             model_name=model_args.model_name_or_path,
@@ -106,7 +110,8 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
                 DistributedDataParallelKwargs(find_unused_parameters=training_args.ddp_find_unused_parameters)
             ]
             ppo_config.accelerator_kwargs["deepspeed_plugin"] = training_args.deepspeed_plugin
-            if ppo_config.log_with == "tensorboard":  # tensorboard raises error about accelerator_kwargs
+            if ppo_config.log_with is not None:
+                logger.warning("PPOTrainer cannot use external logger when DeepSpeed is enabled.")
                 ppo_config.log_with = None
 
         # Create optimizer and scheduler
@@ -114,7 +119,9 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
             num_training_steps = training_args.max_steps
         else:
             total_train_batch_size = backward_batch_size * finetuning_args.ppo_buffer_size * training_args.world_size
-            num_training_steps = training_args.num_train_epochs * math.ceil(len(dataset) / total_train_batch_size)
+            num_training_steps = training_args.num_train_epochs * math.ceil(
+                len(train_dataset) / total_train_batch_size
+            )
 
         optimizer = self.create_optimizer(model, training_args, finetuning_args)
         scheduler = self.create_scheduler(training_args, num_training_steps, optimizer)
@@ -125,7 +132,7 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
             model=model,
             ref_model=ref_model,
             tokenizer=tokenizer,
-            dataset=dataset,
+            dataset=train_dataset,
             data_collator=data_collator,
             lr_scheduler=scheduler,
         )
@@ -296,7 +303,7 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
         training_args: "Seq2SeqTrainingArguments",
         finetuning_args: "FinetuningArguments",
     ) -> "torch.optim.Optimizer":
-        optimizer = create_custom_optimzer(model, training_args, finetuning_args)
+        optimizer = create_custom_optimizer(model, training_args, finetuning_args)
         if optimizer is None:
             decay_params, nodecay_params = [], []
             decay_param_names = self.get_decay_parameter_names(model)

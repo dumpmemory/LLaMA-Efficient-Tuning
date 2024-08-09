@@ -511,6 +511,23 @@ _register_template(
 
 
 _register_template(
+    name="codegeex4",
+    format_user=StringFormatter(slots=["<|user|>\n{{content}}<|assistant|>\n"]),
+    format_system=StringFormatter(slots=["<|system|>\n{{content}}"]),
+    format_function=FunctionFormatter(slots=[], tool_format="glm4"),
+    format_observation=StringFormatter(slots=["<|observation|>\n{{content}}<|assistant|>\n"]),
+    format_tools=ToolFormatter(tool_format="glm4"),
+    format_prefix=EmptyFormatter(slots=["[gMASK]<sop>"]),
+    default_system=(
+        "你是一位智能编程助手，你叫CodeGeeX。你会为用户回答关于编程、代码、计算机方面的任何问题，"
+        "并提供格式规范、可以执行、准确安全的代码，并在必要时提供详细的解释。"
+    ),
+    stop_words=["<|user|>", "<|observation|>"],
+    efficient_eos=True,
+)
+
+
+_register_template(
     name="cohere",
     format_user=StringFormatter(
         slots=[
@@ -561,6 +578,7 @@ _register_template(
 _register_template(
     name="deepseek",
     format_user=StringFormatter(slots=["User: {{content}}\n\nAssistant:"]),
+    format_system=StringFormatter(slots=["{{content}}\n\n"]),
     format_prefix=EmptyFormatter(slots=[{"bos_token"}]),
 )
 
@@ -568,14 +586,14 @@ _register_template(
 _register_template(
     name="deepseekcoder",
     format_user=StringFormatter(slots=["### Instruction:\n{{content}}\n### Response:"]),
-    format_assistant=StringFormatter(slots=["\n{{content}}\n"]),
+    format_assistant=StringFormatter(slots=["\n{{content}}\n<|EOT|>"]),
     format_separator=EmptyFormatter(slots=["\n"]),
     format_prefix=EmptyFormatter(slots=[{"bos_token"}]),
     default_system=(
-        "You are an AI programming assistant, utilizing the Deepseek Coder model, "
-        "developed by Deepseek Company, and you only answer questions related to computer science. "
+        "You are an AI programming assistant, utilizing the DeepSeek Coder model, "
+        "developed by DeepSeek Company, and you only answer questions related to computer science. "
         "For politically sensitive questions, security and privacy issues, "
-        "and other non-computer science questions, you will refuse to answer\n"
+        "and other non-computer science questions, you will refuse to answer.\n"
     ),
 )
 
@@ -875,8 +893,7 @@ _register_template(
 
 _register_template(
     name="zephyr",
-    format_user=StringFormatter(slots=["<|user|>\n{{content}}", {"eos_token"}, "<|assistant|>"]),
-    format_assistant=StringFormatter(slots=["\n{{content}}", {"eos_token"}]),
+    format_user=StringFormatter(slots=["<|user|>\n{{content}}", {"eos_token"}, "<|assistant|>\n"]),
     format_system=StringFormatter(slots=["<|system|>\n{{content}}", {"eos_token"}]),
     default_system="You are Zephyr, a helpful assistant.",
 )
